@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30717.126
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "go11", "go11.vcxproj", "{67CA3E49-6401-40E4-8ED4-01E54F8F7B85}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x86 = Debug|x86
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{67CA3E49-6401-40E4-8ED4-01E54F8F7B85}.Debug|x86.ActiveCfg = Debug|Win32
+		{67CA3E49-6401-40E4-8ED4-01E54F8F7B85}.Debug|x86.Build.0 = Debug|Win32
+		{67CA3E49-6401-40E4-8ED4-01E54F8F7B85}.Release|x86.ActiveCfg = Release|Win32
+		{67CA3E49-6401-40E4-8ED4-01E54F8F7B85}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {DE69C1ED-E5CA-49E6-8A2D-549DCB111514}
+	EndGlobalSection
+EndGlobal
