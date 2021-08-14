@@ -4,7 +4,9 @@ http://entcog.c.ooco.jp/entcog/cg_koushu.html
 
 ## Run
 
-Windows で Visual Studio を使っているなら、 `*.dsw` ファイルをダブルクリックしてください。  
+Windows で Visual Studio を使っているなら、  
+オリジナル版を開くときは `*.dsw` ファイルをダブルクリックしてください。  
+きふわらべのお父んは 環境をアップグレードしたので `*.sln` の方をダブルクリックします。  
 
 ## Change log
 
