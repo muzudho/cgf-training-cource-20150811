@@ -22,12 +22,18 @@ int dir4[4] = {+1, +WIDTH, -1, -WIDTH};
 
 int ko_z;
 
+/// <summary>
+/// 1<= x <=9, 1<= y <=9
+/// </summary>
 int get_z(int x, int y)
 {
-  return y * WIDTH + x; // 1<= x <=9, 1<= y <=9
+  return y * WIDTH + x;
 }
 
-int get81(int z) // for display only
+/// <summary>
+/// for display only
+/// </summary>
+int get81(int z)
 {
   int y = z / WIDTH;
   int x = z - y * WIDTH; // 106 = 9*11 + 7 = (x,y)=(7,9) -> 79
@@ -36,6 +42,11 @@ int get81(int z) // for display only
   return x * 10 + y; // x*100+y for 19x19
 }
 
+/// <summary>
+/// 石の色を反転
+/// </summary>
+/// <param name="col"></param>
+/// <returns></returns>
 int flip_color(int col)
 {
   return 3 - col;
@@ -43,6 +54,13 @@ int flip_color(int col)
 
 int check_board[BOARD_MAX];
 
+/// <summary>
+/// count_liberty関数の中で呼び出されます。再帰
+/// </summary>
+/// <param name="tz">着手（開始）座標</param>
+/// <param name="color">連の色</param>
+/// <param name="p_liberty">呼吸点の数</param>
+/// <param name="p_stone">連の石の数</param>
 void count_liberty_sub(int tz, int color, int *p_liberty, int *p_stone)
 {
   int z, i;
@@ -64,15 +82,29 @@ void count_liberty_sub(int tz, int color, int *p_liberty, int *p_stone)
   }
 }
 
+/// <summary>
+/// 呼吸点の数
+/// </summary>
+/// <param name="tz">着手座標</param>
+/// <param name="p_liberty">呼吸点の数</param>
+/// <param name="p_stone">連の石の数</param>
 void count_liberty(int tz, int *p_liberty, int *p_stone)
 {
   int i;
   *p_liberty = *p_stone = 0;
+
+  // チェックボードのクリア
   for (i = 0; i < BOARD_MAX; i++)
     check_board[i] = 0;
+
   count_liberty_sub(tz, board[tz], p_liberty, p_stone);
 }
 
+/// <summary>
+/// 石を取り上げます
+/// </summary>
+/// <param name="tz">着手座標</param>
+/// <param name="color">石の色</param>
 void take_stone(int tz, int color)
 {
   int z, i;
@@ -86,7 +118,12 @@ void take_stone(int tz, int color)
   }
 }
 
-// put stone. success returns 0
+/// <summary>
+/// put stone.
+/// </summary>
+/// <param name="tz">着手座標</param>
+/// <param name="color">石の色</param>
+/// <returns>success returns 0</returns>
 int put_stone(int tz, int color)
 {
   int around[4][3];
@@ -159,6 +196,9 @@ int put_stone(int tz, int color)
   return 0;
 }
 
+/// <summary>
+/// 盤の描画
+/// </summary>
 void print_board()
 {
   int x, y;
