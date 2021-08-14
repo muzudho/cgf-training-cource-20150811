@@ -5,6 +5,9 @@
 #define WIDTH (B_SIZE + 2)
 #define BOARD_MAX (WIDTH * WIDTH)
 
+/// <summary>
+/// 盤
+/// </summary>
 int board[BOARD_MAX] = {
     3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, //    1 2 3 4 5 6 7 8 9
     3, 0, 0, 0, 0, 0, 2, 0, 0, 0, 3, // 1 ┌┬┬┬┬○┬┬┐
@@ -18,13 +21,22 @@ int board[BOARD_MAX] = {
     3, 0, 0, 0, 0, 2, 1, 0, 2, 1, 3, // 9 └┴┴┴○●┴○●
     3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
 
+/// <summary>
+/// 右、下、左、上
+/// </summary>
 int dir4[4] = {+1, +WIDTH, -1, -WIDTH};
 
+/// <summary>
+/// コウの座標
+/// </summary>
 int ko_z;
 
 /// <summary>
-/// 1<= x <=9, 1<= y <=9
+/// x, y を z（座標；配列のインデックス） に変換
 /// </summary>
+/// <param name="x">1<= x <=9</param>
+/// <param name="y">1<= y <=9</param>
+/// <returns></returns>
 int get_z(int x, int y)
 {
   return y * WIDTH + x;
@@ -33,6 +45,8 @@ int get_z(int x, int y)
 /// <summary>
 /// for display only
 /// </summary>
+/// <param name="z">座標</param>
+/// <returns>人が読める形の座標</returns>
 int get81(int z)
 {
   int y = z / WIDTH;
@@ -45,13 +59,16 @@ int get81(int z)
 /// <summary>
 /// 石の色を反転
 /// </summary>
-/// <param name="col"></param>
-/// <returns></returns>
+/// <param name="col">石の色</param>
+/// <returns>反転した石の色</returns>
 int flip_color(int col)
 {
   return 3 - col;
 }
 
+/// <summary>
+/// 呼吸点を探索するアルゴリズムで使用
+/// </summary>
 int check_board[BOARD_MAX];
 
 /// <summary>
@@ -121,40 +138,70 @@ void take_stone(int tz, int color)
 /// <summary>
 /// put stone.
 /// </summary>
-/// <param name="tz">着手座標</param>
+/// <param name="tz">着手座標。0ならパス</param>
 /// <param name="color">石の色</param>
-/// <returns>success returns 0</returns>
+/// <returns>エラーコード。success returns 0</returns>
 int put_stone(int tz, int color)
 {
+  // 検索情報を覚えておく配列
   int around[4][3];
+
   int un_col = flip_color(color);
+
+  // 空白に石を置いたら1
   int space = 0;
+
+  // 壁に石を置いたら1
   int wall = 0;
+
+  // 自殺手になってしまうとき1
   int mycol_safe = 0;
+
+  // 取り上げた石の数
   int capture_sum = 0;
+
+  // コウかもしれないとき1
   int ko_maybe = 0;
-  int liberty, stone;
+
+  // 呼吸点の数
+  int liberty;
+
+  // 連の石の数
+  int stone;
+
+  // ループ・カウンタ
   int i;
 
+  // pass
   if (tz == 0)
   {
     ko_z = 0;
     return 0;
-  } // pass
+  }
 
   // count 4 neighbor's liberty and stones.
   for (i = 0; i < 4; i++)
   {
     int z, c, liberty, stone;
     around[i][0] = around[i][1] = around[i][2] = 0;
+
+    // 隣の座標
     z = tz + dir4[i];
+
     c = board[z]; // color
+
+    // もし、空点に石を置こうとしたら
     if (c == 0)
       space++;
+
+    // もし、壁に石を置こうとしたら
     if (c == 3)
       wall++;
+
+    // もし、空転または壁に石を置こうとしたら
     if (c == 0 || c == 3)
       continue;
+
     count_liberty(z, &liberty, &stone);
     around[i][0] = liberty;
     around[i][1] = stone;
@@ -164,15 +211,24 @@ int put_stone(int tz, int color)
       capture_sum += stone;
       ko_maybe = z;
     }
+
+    // もし隣に自分の色の石があっても、その石の呼吸点が２以上あればセーフ
     if (c == color && liberty >= 2)
       mycol_safe++;
   }
 
+  // 
   if (capture_sum == 0 && space == 0 && mycol_safe == 0)
     return 1; // suicide
+
+  // もし、コウの座標に石を置こうとしたら
   if (tz == ko_z)
     return 2; // ko
-              //if ( wall + mycol_safe == 4                            ) return 3; // eye
+
+  // もし、目の座標に石を置こうとしたら
+  //if ( wall + mycol_safe == 4 ) return 3; // eye
+
+  // もし、石の上に石を置こうとしたら
   if (board[tz] != 0)
     return 4;
 
@@ -186,6 +242,7 @@ int put_stone(int tz, int color)
     }
   }
 
+  // 石を置く
   board[tz] = color;
 
   count_liberty(tz, &liberty, &stone);
