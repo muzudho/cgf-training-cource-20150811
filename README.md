@@ -2,6 +2,10 @@
 
 http://entcog.c.ooco.jp/entcog/cg_koushu.html
 
+## Run
+
+Windows で Visual Studio を使っているなら、 `*.dsw` ファイルをダブルクリックしてください。  
+
 ## Change log
 
 ```plain
