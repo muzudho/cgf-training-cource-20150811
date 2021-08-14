@@ -366,7 +366,7 @@ int select_best_ucb(int node_n)
     if ( c->z == ILLEGAL_Z ) continue;
 
     if ( c->games==0 ) {
-      ucb = 10000 + rand();  // try once
+      ucb = 10000 + (rand() & 0x7fff);  // try once
     } else {
       const double C = 1;    // depends on program
       ucb = c->rate + C * sqrt( log((double)pN->child_games_sum) / c->games );
@@ -516,7 +516,7 @@ void test_playout()
   playout(1);
   print_board();
   print_sgf();
-}          
+}
 
 int main()
 {

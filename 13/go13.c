@@ -1,3 +1,5 @@
+#define _CRT_SECURE_NO_WARNINGS     // sprintf is Err in VC++
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -566,7 +568,7 @@ int select_best_ucb(int node_n, int color)
     if ( c->z == ILLEGAL_Z ) continue;
 
     if ( c->games==0 ) {
-      ucb_rave = 10000 + rand();  // try once
+      ucb_rave = 10000 + (rand() & 0x7fff);  // try once
     } else {
       const double C = 0.30;    // depends on program
       const double RAVE_D = 3000;

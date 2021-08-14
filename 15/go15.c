@@ -37,6 +37,7 @@ int ko_z;
 
 #define MAX_MOVES 1000
 int record[MAX_MOVES];
+double record_time[MAX_MOVES];
 int moves = 0;
 
 int all_playouts = 0;
@@ -45,6 +46,94 @@ int flag_test_playout = 0;
 #define D_MAX 1000
 int path[D_MAX];
 int depth;
+
+int board_area_sum[BOARD_MAX];
+int board_winner[2][BOARD_MAX];
+int winner_count[2];
+
+
+int criticality[BOARD_MAX];
+
+
+void prt(const char *fmt, ...)
+{
+  va_list ap;
+
+  va_start(ap, fmt);
+//{ FILE *fp = fopen("out.txt","a"); if ( fp ) { vfprt( fp, fmt, ap ); fclose(fp); } }
+  vfprintf( stderr, fmt, ap );
+  va_end(ap);
+}
+void send_gtp(const char *fmt, ...)
+{
+  va_list ap;
+
+  va_start(ap, fmt);
+  vfprintf( stdout, fmt, ap );
+  va_end(ap);
+}
+
+
+
+#if defined(_MSC_VER)
+typedef unsigned __int64 uint64;
+#define PRIx64  "I64x"
+#else
+#include <stdint.h>
+#include <sys/time.h>
+#include <unistd.h>
+typedef uint64_t uint64;  // Linux
+#define PRIx64  "llx"
+#endif
+
+#define HASH_KINDS 4      // 1...black, 2...white, 3...ko
+#define HASH_KO 3
+uint64 hashboard[BOARD_MAX][HASH_KINDS];
+uint64 hashcode = 0;
+
+unsigned long rand_xorshift128() {  // 2^128-1 
+  static unsigned long x=123456789,y=362436069,z=521288629,w=88675123;
+  unsigned long t;
+  t=(x^(x<<11)) & 0xffffffff;
+  x=y;y=z;z=w; return( w=(w^(w>>19))^(t^(t>>8)) );
+}
+
+uint64 rand64()
+{
+  unsigned long r1 = rand_xorshift128();
+  unsigned long r2 = rand_xorshift128();
+  uint64 r = ((uint64)r1 << 32) | r2;
+  return r;
+}
+
+void prt_code64(uint64 r)
+{
+//prt("%016" PRIx64,r);
+  prt("%08x%08x",(int)(r>>32),(int)r);
+};
+
+void make_hashboard()
+{
+  int z,i;
+  for (z=0;z<BOARD_MAX;z++) {
+//  prt("[%3d]=",z); 
+    for (i=0;i<HASH_KINDS;i++) {
+      hashboard[z][i] = rand64();
+//    prt_code64(hashboard[z][i]); prt(",");
+    }
+//  prt("\n");
+  }
+}
+
+void hash_pass()
+{
+  hashcode = ~hashcode;
+}
+void hash_xor(int z, int color)
+{
+  hashcode ^= hashboard[z][color];
+}
+
 
 
 int get_z(int x,int y)
@@ -80,22 +169,82 @@ int flip_color(int col)
   return 3 - col;
 }
 
-void prt(const char *fmt, ...)
+void print_board()
 {
-  va_list ap;
+  int x,y;
+  const char *str[4] = { ".","X","O","#" };
+  int played_z = 0;
+  int color = 0;
+  if ( moves > 0 ) {
+    played_z = record[moves-1];
+    color    = board[played_z];
+  }
+  
+  prt("   ");
+//for (x=0;x<B_SIZE;x++) prt("%d",x+1);
+  for (x=0;x<B_SIZE;x++) prt("%c",'A'+x+(x>7));
+  prt("\n");
+  for (y=0;y<B_SIZE;y++) {
+//  prt("%2d ",y+1);
+    prt("%2d ",B_SIZE-y);
+    for (x=0;x<B_SIZE;x++) {
+      prt("%s",str[board[get_z(x+1,y+1)]]);
+    }
+    if ( y==4 ) prt("  ko_z=%s,moves=%d",get_char_z(ko_z), moves);
+    if ( y==7 ) prt("  play_z=%s, color=%d",get_char_z(played_z), color);
 
-  va_start(ap, fmt);
-//{ FILE *fp = fopen("out.txt","a"); if ( fp ) { vfprt( fp, fmt, ap ); fclose(fp); } }
-  vfprintf( stderr, fmt, ap );
-  va_end(ap);
+    prt("\n");
+  }
 }
-void send_gtp(const char *fmt, ...)
-{
-  va_list ap;
 
-  va_start(ap, fmt);
-  vfprintf( stdout, fmt, ap );
-  va_end(ap);
+void print_board_area()
+{
+  int x,y;
+  int all = all_playouts;
+  if ( all == 0 ) all = 1;
+
+  prt("board_area_sum\n   ");
+  for (x=0;x<B_SIZE;x++) prt("   %c",'A'+x+(x>7));
+  prt("\n");
+  for (y=0;y<B_SIZE;y++) {
+    prt("%2d ",B_SIZE-y);
+    for (x=0;x<B_SIZE;x++) {
+      int sum = board_area_sum[ get_z(x+1,y+1) ];
+      double per = 100.0 * sum / all;
+      prt("%4.0f",per);
+    }
+
+    prt("\n");
+  }
+}
+
+
+double get_criticality(int z)
+{
+  double all = all_playouts + 1;
+  double v = board_winner[0][z] + board_winner[1][z];
+  double per = v / all;
+  double bp = (double)board_winner[0][z] * winner_count[0] / (all * all);
+  double wp = (double)board_winner[1][z] * winner_count[1] / (all * all);
+  double criticality = (per - (bp+wp));
+  return criticality;
+}
+
+void print_criticality()
+{
+  int x,y;
+
+  prt("criticality\n  ");
+  for (x=0;x<B_SIZE;x++) prt("    %c",'A'+x+(x>7));
+  prt("\n");
+  for (y=0;y<B_SIZE;y++) {
+    prt("%2d ",B_SIZE-y);
+    for (x=0;x<B_SIZE;x++) {
+      double crt = get_criticality( get_z(x+1,y+1) );
+      prt("%5.2f",crt);
+    }
+    prt("\n");
+  }
 }
 
 int check_board[BOARD_MAX];
@@ -129,6 +278,7 @@ void take_stone(int tz,int color)
 {
   int z,i;
   
+  hash_xor(tz, color);
   board[tz] = 0;
   for (i=0;i<4;i++) {
     z = tz + dir4[i];
@@ -152,7 +302,12 @@ int put_stone(int tz, int color, int fill_eye_err)
   int liberty, stone;
   int i;
 
-  if ( tz == 0 ) { ko_z = 0; return 0; }  // pass
+  if ( tz == 0 ) {  // pass
+    if ( ko_z != 0 ) hash_xor(ko_z, HASH_KO);
+    ko_z = 0;
+    hash_pass();
+    return 0;
+  }
 
   // count 4 neighbor's liberty and stones.
   for (i=0;i<4;i++) {
@@ -179,224 +334,24 @@ int put_stone(int tz, int color, int fill_eye_err)
   for (i=0;i<4;i++) {
     int lib = around[i][0];
     int c   = around[i][2];
-    if ( c == un_col && lib == 1 && board[tz+dir4[i]] ) {
+    if ( c == un_col && lib == 1 && board[tz+dir4[i]] != 0 ) {
       take_stone(tz+dir4[i],un_col);
     }
   }
 
   board[tz] = color;
+  hash_xor(tz, color);
+  hash_pass();
+  if ( ko_z != 0 ) hash_xor(ko_z, HASH_KO);
 
   count_liberty(tz, &liberty, &stone);
-  if ( capture_sum == 1 && stone == 1 && liberty == 1 ) ko_z = ko_maybe;
-  else ko_z = 0;
+  if ( capture_sum == 1 && stone == 1 && liberty == 1 ) {
+    ko_z = ko_maybe;
+    hash_xor(ko_z, HASH_KO);
+  } else {
+    ko_z = 0;
+  }
   return 0;
-}
-
-void print_board()
-{
-  int x,y;
-  const char *str[4] = { ".","X","O","#" };
-
-  prt("   ");
-//for (x=0;x<B_SIZE;x++) prt("%d",x+1);
-  for (x=0;x<B_SIZE;x++) prt("%c",'A'+x+(x>7));
-  prt("\n");
-  for (y=0;y<B_SIZE;y++) {
-//  prt("%2d ",y+1);
-    prt("%2d ",B_SIZE-y);
-    for (x=0;x<B_SIZE;x++) {
-      prt("%s",str[board[get_z(x+1,y+1)]]);
-    }
-    if ( y==4 ) prt("  ko_z=%d,moves=%d",get81(ko_z), moves);
-    prt("\n");
-  }
-}
-
-char *pattern3x3[] = {
-  "XO?"  // "X" ... black,  black "X" to play at the center.
-  "..."  // "O" ... white
-  "???", // "." ... empty
-         // "#" ... out of board
-  "OX."  // "?" ... dont care
-  "..."
-  "?.?",
-
-  "XO?"
-  "..X"
-  "?.?",
-
-  "X.."
-  "O.."
-  "###",
-
-  NULL
-};
-
-#define EXPAND_PATTERN_MAX  (8*100)
-int e_pat_num = 0;
-int e_pat[EXPAND_PATTERN_MAX][9];      // rotate and flip pattern
-int e_pat_bit[EXPAND_PATTERN_MAX][2];  // [0] ...pattern, [1]...mask
-int dir_3x3[9] = { -WIDTH-1, -WIDTH, -WIDTH+1,  -1, 0, +1,  +WIDTH-1, +WIDTH, +WIDTH+1 };
-
-void expand_pattern3x3()
-{
-  int n,i,j;
-  e_pat_num = 0;
-  for (n=0; ;n++) {
-    int i,j;
-    char *p = pattern3x3[n];
-    if ( p == NULL ) break;
-    if ( e_pat_num > EXPAND_PATTERN_MAX-8 ) { prt("e_pat_num over Err\n"); exit(0); }
-
-    for (i=0;i<9;i++) {
-      int m = 0;
-      char c = *(p+i);
-      if ( c == '.' ) m = 0;
-      if ( c == 'X' ) m = 1;
-      if ( c == 'O' ) m = 2;
-      if ( c == '#' ) m = 3;
-      if ( c == '?' ) m = 4;
-      e_pat[e_pat_num][i] = m;
-    }
-    e_pat_num++;
-    for (i=0;i<2;i++) {
-      int *p;
-      int *q;
-      for (j=0;j<3;j++) {
-        p = e_pat[e_pat_num-1];
-        q = e_pat[e_pat_num  ];
-        // roteta 90
-        //  "012"      "630"
-        //  "345"  ->  "741"
-        //  "678"      "852"
-        q[0] = p[6];
-        q[1] = p[3];
-        q[2] = p[0];
-        q[3] = p[7];
-        q[4] = p[4];
-        q[5] = p[1];
-        q[6] = p[8];
-        q[7] = p[5];
-        q[8] = p[2];
-        e_pat_num++;
-      }
-      if ( i==1 ) break;
-      p = e_pat[e_pat_num-1];
-      q = e_pat[e_pat_num  ];
-      // vertical flip
-      q[0] = p[6];
-      q[1] = p[7];
-      q[2] = p[8];
-      q[3] = p[3];
-      q[4] = p[4];
-      q[5] = p[5];
-      q[6] = p[0];
-      q[7] = p[1];
-      q[8] = p[2];
-      e_pat_num++;
-    }
-  }
-
-  for (i=0;i<e_pat_num;i++) {
-    e_pat_bit[i][0] = 0;
-    e_pat_bit[i][1] = 0;
-//  prt("%4d\n",i);
-    for (j=0;j<9;j++) {
-      int c = e_pat[i][j];
-      int mask = 3;
-//    prt("%d",c);
-//    if ((j+1)%3==0) prt("\n");
-      if ( c == 4 ) {
-        mask = 0;
-        c = 0;
-      }
-      e_pat_bit[i][0] = e_pat_bit[i][0] << 2;
-      e_pat_bit[i][1] = e_pat_bit[i][1] << 2;
-      e_pat_bit[i][0] |= c;
-      e_pat_bit[i][1] |= mask;
-    }
-//  prt("bit=%08x,mask=%08x\n",e_pat_bit[i][0],e_pat_bit[i][1]);
-  }
-  prt("pattern3x3 num=%d, e_pat_num=%d\n",n,e_pat_num);
-}
-
-// return pattern number, -1 ... not found 
-int match_pattern3x3(int z, int col)
-{
-#if 1    // 413 playouts/sec
-  int pat_bit = 0;
-  int i,j;
-  for (j=0;j<9;j++) {
-    int c = board[z+dir_3x3[j]];
-    if ( col==2 && (c==1 || c==2) ) c = 3 - c;
-    pat_bit = pat_bit << 2;
-    pat_bit |= c;
-  }
-  for (i=0;i<e_pat_num;i++) {
-    int e_bit  = e_pat_bit[i][0];
-    int e_mask = e_pat_bit[i][1];
-    if ( e_bit == (pat_bit & e_mask) ) return i;
-  }
-  return -1;
-#else    // 353 playouts/sec
-  int i,j;
-  for (i=0;i<e_pat_num;i++) {
-    for (j=0;j<9;j++) {
-      int c = board[z+dir_3x3[j]];
-      int e = e_pat[i][j];
-      if      ( col==2 && e==1 ) e = 2;
-      else if ( col==2 && e==2 ) e = 1;
-      if ( e==4 ) continue;
-      if ( c != e ) break;
-    }
-    if ( j==9 ) return i;
-  }
-  return -1;
-#endif
-}
-
-int get_prob(int z, int prev_z, int col)
-{
-  const int MAX_PROB = INT_MAX / BOARD_MAX;
-  int pr = 100;
-  int un_col = flip_color(col);
-  int y      = z / WIDTH;
-  int x      = z - y*WIDTH;
-  int prev_y = prev_z / WIDTH;
-  int prev_x = prev_z - prev_y*WIDTH;
-  int dx = abs(x - prev_x);
-  int dy = abs(y - prev_y);
-  int m;
-  int i;
-  int sc[4];
-
-  // add your code, start -->
-
-
-  sc[0]=sc[1]=sc[2]=sc[3]=0;
-  for (i=0;i<8;i++) {
-    sc[ board[z+dir8[i]] ]++;
-  }
-  if ( sc[un_col] >= 3 && sc[   col] == 0 ) pr /= 2;
-  if ( sc[   col] >= 3 && sc[un_col] == 0 ) pr *= 2;
-
-  m = -1;
-  if ( prev_z != 0 && ((dx+dy)==1 || (dx*dy)==1)) {
-    m = match_pattern3x3(z, col);
-  }
-  if ( m >= 0 ) {
-    int n = m/8;  // pattern number
-//  prt("match=%3d,z=%s,col=%d\n",m,get_char_z(z),col);
-    pr *= 1000;
-    if ( n==0 ) pr *= 2;
-  }
-
-
-  // add your code, end <--
-
-  if ( pr < 1        ) pr = 1;
-  if ( pr > MAX_PROB ) pr = MAX_PROB;
-  return pr;
 }
 
 int count_score(int turn_color)
@@ -412,11 +367,21 @@ int count_score(int turn_color)
     int z = get_z(x+1,y+1);
     int c = board[z];
     kind[c]++;
-    if ( c != 0 ) continue;
+    if ( c != 0 ) {
+      if ( c==1 ) board_area_sum[z]++;
+      if ( c==2 ) board_area_sum[z]--;
+      continue;
+    }
     mk[1] = mk[2] = 0;  
     for (i=0;i<4;i++) mk[ board[z+dir4[i]] ]++;
-    if ( mk[1] && mk[2]==0 ) black_area++;
-    if ( mk[2] && mk[1]==0 ) white_area++;
+    if ( mk[1] && mk[2]==0 ) {
+      black_area++;
+      board_area_sum[z]++;
+    }
+    if ( mk[2] && mk[1]==0 ) {
+      white_area++;
+      board_area_sum[z]--;
+    }
   }
  
   black_sum = kind[1] + black_area;
@@ -426,7 +391,24 @@ int count_score(int turn_color)
   win = 0;
   if ( score - komi > 0 ) win = 1;
 
-  if ( turn_color == 2 ) win = -win; 
+
+  if ( win == 1 ) { // black win
+    for (y=0;y<B_SIZE;y++) for (x=0;x<B_SIZE;x++) {
+      int z = get_z(x+1,y+1);
+      if ( board[z]==1 ) board_winner[0][z]++;
+    }
+    winner_count[0]++;
+  } else {
+    for (y=0;y<B_SIZE;y++) for (x=0;x<B_SIZE;x++) {
+      int z = get_z(x+1,y+1);
+      if ( board[z]==2 ) board_winner[1][z]++;
+    }
+    winner_count[1]++;
+  }
+
+
+
+  if ( turn_color == 2 ) win = -win;
 
 //prt("black_sum=%2d, (stones=%2d, area=%2d)\n",black_sum, kind[1], black_area);
 //prt("white_sum=%2d, (stones=%2d, area=%2d)\n",white_sum, kind[2], white_area);
@@ -452,7 +434,8 @@ int playout(int turn_color)
       int z = get_z(x+1,y+1);
       if ( board[z] != 0 ) continue;
       empty[empty_num][0] = z;
-      pr = get_prob(z, previous_z, color);
+      pr = 100;
+//    pr = get_prob(z, previous_z, color);
       empty[empty_num][1] = pr;
       prob_sum += pr;
       empty_num++;
@@ -478,8 +461,8 @@ int playout(int turn_color)
       empty[i][1] = empty[empty_num-1][1];
       empty_num--;
     }
-
     if ( flag_test_playout ) record[moves++] = z;
+
     if ( depth < D_MAX ) path[depth++] = z;
 
     if ( z == 0 && previous_z == 0 ) break;  // continuous pass
@@ -546,11 +529,13 @@ int primitive_monte_calro(int color)
 // following are for UCT
 
 typedef struct {
-  int z;        // move position
-  int games;    // number of games
-  double rate;  // winrate
-  int next;     // next node
-  double bonus; // shape bonus
+  int    z;          // move position
+  int    games;      // number of games
+  double rate;       // winrate
+  int    rave_games; // (RAVE) number of games
+  double rave_rate;  // (RAVE) winrate
+  int    next;       // next node
+  double bonus;      // shape bonus
 } CHILD;
 
 #define CHILD_SIZE  (B_SIZE*B_SIZE+1)  // +1 for PASS
@@ -559,6 +544,7 @@ typedef struct {
   int child_num;
   CHILD child[CHILD_SIZE];
   int child_games_sum;
+  int child_rave_games_sum;
 } NODE;
 
 #define NODE_MAX 10000
@@ -571,51 +557,32 @@ const int ILLEGAL_Z  = -1; // illegal move
 void add_child(NODE *pN, int z, double bonus)
 {
   int n = pN->child_num;
-  pN->child[n].z     = z;
-  pN->child[n].games = 0;
-  pN->child[n].rate  = 0;
-  pN->child[n].next  = NODE_EMPTY;
-  pN->child[n].bonus = bonus;  // from 0 to 10, good move has big bonus.
+  pN->child[n].z          = z;
+  pN->child[n].games      = 0;
+  pN->child[n].rate       = 0;
+  pN->child[n].rave_games = 0;
+  pN->child[n].rave_rate  = 0;
+  pN->child[n].next       = NODE_EMPTY;
+  pN->child[n].bonus      = bonus;  // from 0 to 10, good move has big bonus.
   pN->child_num++;
-}
-
-double get_bonus(int z, int prev_z)
-{
-  int y = z / WIDTH;
-  int x = z - y*WIDTH;
-  int prev_y = prev_z / WIDTH;
-  int prev_x = prev_z - prev_y*WIDTH;
-  int dx = abs(x - prev_x);
-  int dy = abs(y - prev_y);
-  double b = 1.0;
-
-  if ( x==1 || x==B_SIZE   ) b *= 0.5;
-  if ( y==1 || y==B_SIZE   ) b *= 0.5;
-  if ( x==2 || x==B_SIZE-1 ) b *= 0.8;
-  if ( y==2 || y==B_SIZE-1 ) b *= 0.8;
-  
-  if ( prev_z != 0 && (dx + dy) == 1 ) b *= 2.0;
-  
-  return b;
 }
 
 // create new node. return node index.
 int create_node(int prev_z)
 {
   int x,y,z,i,j;
-  double bonus;
   NODE *pN;
   
   if ( node_num == NODE_MAX ) { prt("node over Err\n"); exit(0); }
   pN = &node[node_num];
   pN->child_num = 0;
   pN->child_games_sum = 0;
+  pN->child_rave_games_sum = 0;
 
   for (y=0;y<B_SIZE;y++) for (x=0;x<B_SIZE;x++) {
     z = get_z(x+1,y+1);
     if ( board[z] != 0 ) continue;
-    bonus = get_bonus(z, prev_z);
-    add_child(pN, z, bonus);
+    add_child(pN, z, 0);
   }
   add_child(pN, 0, 0);  // add PASS
 
@@ -640,35 +607,40 @@ int create_node(int prev_z)
   return node_num-1; 
 }
 
-int select_best_ucb(int node_n)
+int select_best_ucb(int node_n, int color)
 {
   NODE *pN = &node[node_n];
   int select = -1;
   double max_ucb = -999;
-  double ucb = 0;
+  double ucb = 0, ucb_rave = 0, beta;
   int i;
-  int legal_num = 0;
-  int pw_num = (int)(1.0 + log(pN->child_games_sum+1.0) / log(1.8));
-  if ( pw_num < 1 ) pw_num = 1;
 
   for (i=0; i<pN->child_num; i++) {
     CHILD *c = &pN->child[i];
     if ( c->z == ILLEGAL_Z ) continue;
 
-    legal_num++;
-    if ( legal_num > pw_num ) break;
-
     if ( c->games==0 ) {
-      ucb = 10000 + (rand() & 0x7fff);  // try once
+      ucb_rave = 10000 + (rand() & 0x7fff);  // try once
     } else {
-      const double C = 1;    // depends on program
-      const double B0 = 0.1;
-      const double B1 = 100;
-      double plus = B0 * log(1.0 + c->bonus) * sqrt( B1 / (B1 + c->games));
-      ucb = c->rate + C * sqrt( log((double)pN->child_games_sum) / c->games ) + plus;
+      const double C = 0.30;    // depends on program
+      const double RAVE_D = 3000;
+      double moveCount = c->games;
+      double raveCount = c->rave_games;
+      double rave = c->rave_rate;
+      if ( c->z == 0 ) {  // dont select pass
+        rave = 1 - color;
+        raveCount = pN->child_games_sum;
+      }
+
+      beta = raveCount / (raveCount + moveCount + raveCount*moveCount/ RAVE_D);
+
+      ucb  = c->rate + C * sqrt( log((double)pN->child_games_sum) / c->games );
+
+      ucb_rave = beta * rave + (1 - beta) * ucb;
+//    if ( depth==0 ) prt("%2d:z=%2d,rate=%6.3f,games=%4d, rave_r=%6.3f,g=%4d, beta=%f,ucb_rave=%f\n", i, get81(c->z), c->rate, c->games, c->rave_rate, c->rave_games,beta,ucb_rave);
     }
-    if ( ucb > max_ucb ) {
-      max_ucb = ucb;
+    if ( ucb_rave > max_ucb ) {
+      max_ucb = ucb_rave;
       select = i;
     }
   }
@@ -676,13 +648,38 @@ int select_best_ucb(int node_n)
   return select;
 }
 
+void update_rave(NODE *pN, int color, int current_depth, double win)
+{
+  int played_color[BOARD_MAX];
+  int i,z;
+  int c = color;
+  
+  memset(played_color, 0, sizeof(played_color));
+  for (i=current_depth; i<depth; i++) {
+    z = path[i];
+    if ( played_color[z] == 0 ) played_color[z] = c;
+    c = flip_color(c);
+  }
+
+  played_color[0] = 0;	// ignore pass
+
+  for (i=0; i<pN->child_num; i++) {
+    CHILD *c = &pN->child[i];
+    if ( c->z == ILLEGAL_Z ) continue;
+    if ( played_color[c->z] != color ) continue;
+    c->rave_rate = (c->rave_games * c->rave_rate + win) / (c->rave_games + 1);
+    c->rave_games++;
+    pN->child_rave_games_sum++;
+  }
+}
+
 int search_uct(int color, int node_n)
 {
   NODE *pN = &node[node_n];
   CHILD *c = NULL;  
-  int select, z, err, win;
+  int select, z, err, win, current_depth;
   for (;;) {
-    select = select_best_ucb(node_n);
+    select = select_best_ucb(node_n, color);
     c = &pN->child[select];
     z = c->z;
     err = put_stone(z, color, FILL_EYE_ERR);
@@ -690,6 +687,7 @@ int search_uct(int color, int node_n)
     c->z = ILLEGAL_Z;     // select other move
   }
 
+  current_depth = depth;
   path[depth++] = c->z;
 
   // playout in first time. <= 10 can reduce node.
@@ -700,6 +698,8 @@ int search_uct(int color, int node_n)
     win = -search_uct(flip_color(color), c->next);
   }
 
+  update_rave(pN, color, current_depth, win);
+  
   // update winrate
   c->rate = (c->rate * c->games + win) / (c->games + 1);
   c->games++;
@@ -707,7 +707,54 @@ int search_uct(int color, int node_n)
   return win;  
 }
 
-int uct_loop = 1000;  // number of uct loop
+
+// get mill second time. clock() returns process CPU times on Linux, not proper when multi thread.
+double get_clock()
+{
+#if defined(_MSC_VER)
+  return clock();
+#else
+  struct timeval  val;
+  struct timezone zone;
+  if ( gettimeofday( &val, &zone ) == -1 ) { prt("time err\n"); exit(0); }
+  double t = val.tv_sec*1000.0 + (val.tv_usec / 1000.0);
+  return t;
+#endif
+}
+
+// get sec time.
+double get_spend_time(double ct)
+{
+//int div = CLOCKS_PER_SEC;	// 1000 ...VC, 1000000 ...gcc
+  int div = 1000;
+  return (double)(get_clock()+1 - ct) / div;
+}
+
+double start_time;
+double time_limit_sec = 3.0;
+
+int is_time_over()
+{
+  if ( get_spend_time(start_time) >= time_limit_sec ) return 1;
+  return 0;
+}
+
+double count_total_time()
+{
+  int i;
+  double total_time[2];
+
+  total_time[0] = 0;  // black time
+  total_time[1] = 0;  // white
+
+  for (i=0; i<moves; i++) {
+    total_time[i&1] += record_time[i];
+  }
+  return total_time[moves & 1];
+}
+
+
+int uct_loop = 1000000;  // number of uct loop
 
 int get_best_uct(int color)
 {
@@ -725,11 +772,14 @@ int get_best_uct(int color)
     int ko_z_copy = ko_z;
     memcpy(board_copy, board, sizeof(board));
 
-     depth = 0;
-     search_uct(color, next);
+    depth = 0;
+    search_uct(color, next);
 
     ko_z = ko_z_copy;
     memcpy(board, board_copy, sizeof(board));
+
+    if ( is_time_over() ) break;
+
   }
   pN = &node[next];
   for (i=0; i<pN->child_num; i++) {
@@ -738,10 +788,11 @@ int get_best_uct(int color)
       best_i = i;
       max = c->games;
     }
-    prt("%2d:z=%2d,rate=%.4f,games=%3d,bonus=%.4f\n",i, get81(c->z), c->rate, c->games, c->bonus);
+    prt("%2d:z=%2d,rate=%6.3f,games=%4d, rave_r=%6.3f,g=%4d\n",
+        i, get81(c->z), c->rate, c->games, c->rave_rate, c->rave_games);
   }
   best_z = pN->child[best_i].z;
-  prt("best_z=%d,rate=%.4f,games=%d,playouts=%d,nodes=%d\n",
+  prt("best_z=%d,rate=%6.3f,games=%4d,playouts=%d,nodes=%d\n",
        get81(best_z), pN->child[best_i].rate, max, all_playouts, node_num);
   return best_z;
 }
@@ -753,36 +804,60 @@ void init_board()
   for (y=0;y<B_SIZE;y++) for (x=0;x<B_SIZE;x++) board[get_z(x+1,y+1)] = 0;
   moves = 0;
   ko_z = 0;
+  hashcode = 0;
 }
 
-void add_moves(int z, int color)
+void add_moves(int z, int color, double sec)
 {
   int err = put_stone(z, color, FILL_EYE_OK);
-  if ( err != 0 ) { prt("Err!\n"); exit(0); }
+  if ( err != 0 ) { prt("put_stone err=%d\n",err); exit(0); }
   record[moves] = z;
+  record_time[moves] = sec;
   moves++;
   print_board();
+  prt("hashcode="); prt_code64(hashcode); prt("\n");
 }
 
 const int SEARCH_PRIMITIVE = 0;
 const int SEARCH_UCT       = 1;
 
-int get_computer_move(int color, int search)
+int play_computer_move(int color, int search)
 {
-  clock_t st = clock();
-  double t;
+  double sec;
   int z;
 
+  double total_time = count_total_time();
+
+  double base_time = 60*10;    // 10 minutes
+  double left_time = base_time - total_time;
+  int div = 12; // 40 ... 13x13, 70 ... 19x19
+  time_limit_sec = left_time / div;
+  if ( left_time < 60       ) time_limit_sec = 1.0;
+  if ( left_time < 20       ) time_limit_sec = 0.2;
+  prt("time_limit_sec=%.1f, total=%.1f, left=%.1f\n",time_limit_sec, total_time, left_time);
+
+  start_time = get_clock();
+
   all_playouts = 0;
+  memset(board_area_sum, 0, sizeof(board_area_sum));
+  memset(board_winner,   0, sizeof(board_winner));
+  memset(winner_count,   0, sizeof(winner_count));
+
   if ( search == SEARCH_UCT ) {
     z = get_best_uct(color);
   } else {
     z = primitive_monte_calro(color);
   }
-  t = (double)(clock()+1 - st) / CLOCKS_PER_SEC;
-  prt("z=%s,color=%d,moves=%d,playouts=%d, %.1f sec(%.0f playout/sec)\n",
-       get_char_z(z), color, moves, all_playouts, t, all_playouts/t );
-  return z;   
+
+//print_board_area();
+//print_criticality();
+
+  sec = get_spend_time(start_time);
+  prt("z=%s,color=%d,moves=%d,playouts=%d, %.1f sec(%.0f po/sec),depth=%d\n",
+       get_char_z(z), color, moves, all_playouts, sec, all_playouts/sec, depth );
+
+  add_moves(z, color, sec);
+  return z;
 }
 
 // print SGF game record
@@ -813,12 +888,11 @@ void selfplay()
   
   for (;;) {
     if ( color == 1 ) {
-      search = SEARCH_PRIMITIVE;
+      search = SEARCH_UCT; //SEARCH_PRIMITIVE;
     } else {
       search = SEARCH_UCT;
     }
-    z = get_computer_move(color, search);
-    add_moves(z, color);
+    z = play_computer_move(color, search);
     if ( z == 0 && moves > 1 && record[moves-2] == 0 ) break;
     if ( moves > 300 ) break;  // too long
     color = flip_color(color);
@@ -839,21 +913,13 @@ void test_playout()
 #define STR_MAX 256
 #define TOKEN_MAX 3
 
-int main()
+void gtp_loop()
 {
   char str[STR_MAX];
   char sa[TOKEN_MAX][STR_MAX];
   char seps[] = " ";
   char *token;
   int x,y,z,ax, count;
-
-  srand( (unsigned)time( NULL ) );
-//srand( 0 );  // rand() generates same random number.
-  init_board();
-  expand_pattern3x3();
-
-  if ( 0 ) { selfplay(); return 0; }
-  if ( 0 ) { test_playout(); return 0; }
 
   setbuf(stdout, NULL);
   setbuf(stderr, NULL);
@@ -893,8 +959,7 @@ int main()
       int color = 1;
       if ( tolower(sa[1][0])=='w' ) color = 2;
 
-      z = get_computer_move(color, SEARCH_UCT);
-      add_moves(z, color);
+      z = play_computer_move(color, SEARCH_UCT);
       send_gtp("= %s\n\n",get_char_z(z));
     } else if ( strstr(sa[0],"play") ) {  // "play b c4", "play w d17"
       int color = 1;
@@ -905,11 +970,24 @@ int main()
       y = atoi(&sa[2][1]);
       z = get_z(x, B_SIZE-y+1);
       if ( tolower(sa[2][0])=='p' ) z = 0;  // pass
-      add_moves(z, color);
+      add_moves(z, color, 0);
       send_gtp("= \n\n");
     } else {
       send_gtp("? unknown_command\n\n");
     }
   }
+}
+
+int main()
+{
+//srand( (unsigned)time( NULL ) );
+  init_board();
+  make_hashboard();
+
+  if ( 0 ) { selfplay(); return 0; }
+  if ( 0 ) { test_playout(); return 0; }
+
+  gtp_loop();
+
   return 0;
 }
