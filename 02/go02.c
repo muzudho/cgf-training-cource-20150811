@@ -1,8 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+// n路盤
 #define B_SIZE 9
+
+// 両端に番兵込みの幅
 #define WIDTH (B_SIZE + 2)
+
+// 番兵込みの盤の面積
 #define BOARD_MAX (WIDTH * WIDTH)
 
 /// <summary>
@@ -278,6 +283,10 @@ void print_board()
   }
 }
 
+/// <summary>
+/// プログラムはここから始まります
+/// </summary>
+/// <returns>エラーコード。正常時は0</returns>
 int main()
 {
   int err;

@@ -1,10 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+// n路盤
 #define B_SIZE 9
+
+// 両端に番兵込みの幅
 #define WIDTH (B_SIZE + 2)
+
+// 番兵込みの盤の面積
 #define BOARD_MAX (WIDTH * WIDTH)
 
+/// <summary>
+/// 盤
+/// </summary>
 int board[BOARD_MAX] = {
     3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
     3, 2, 1, 1, 0, 1, 0, 0, 0, 0, 3,
@@ -18,6 +26,9 @@ int board[BOARD_MAX] = {
     3, 0, 0, 0, 0, 0, 2, 1, 0, 0, 3,
     3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
 
+/// <summary>
+/// 盤の描画
+/// </summary>
 void print_board()
 {
   int x, y;
@@ -42,6 +53,10 @@ void print_board()
   }
 }
 
+/// <summary>
+/// プログラムはここから始まります
+/// </summary>
+/// <returns>エラーコード。正常時は0</returns>
 int main()
 {
   print_board();
