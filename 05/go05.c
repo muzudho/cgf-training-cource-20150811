@@ -336,11 +336,11 @@ void print_board()
 /// スコアにはコミは含みませんが、勝敗にはコミを含んでいます。
 /// </summary>
 /// <param name="turn_color">手番の色</param>
-/// <returns>勝ちなら1、負けなら0</returns>
+/// <returns>黒の勝ちなら1、負けなら0</returns>
 int count_score(int turn_color)
 {
     int x, y, i;
-    // 石の数の差
+    // 黒のスコア
     int score = 0;
     // 勝ちなら1、負けなら0
     int win;
@@ -378,10 +378,12 @@ int count_score(int turn_color)
                 white_area--;
         }
 
+    // スコア計算（コミ含まず）
     black_sum = kind[1] + black_area;
     white_sum = kind[2] + white_area;
     score = black_sum - white_sum;
 
+    // 黒の勝敗判定
     win = 0;
     if (score - komi > 0)
         win = 1;
@@ -396,7 +398,7 @@ int count_score(int turn_color)
 /// プレイアウトします
 /// </summary>
 /// <param name="turn_color">手番の石の色</param>
-/// <returns>勝ちなら1、負けなら0</returns>
+/// <returns>黒の勝ちなら1、負けなら0</returns>
 int playout(int turn_color)
 {
     int color = turn_color;
@@ -468,9 +470,13 @@ int playout(int turn_color)
 /// <returns>エラーコード。正常時は0</returns>
 int main()
 {
+    // 黒番
     int color = 1;
 
+    // 乱数の種を設定
     srand((unsigned)time(NULL));
+
+    // プレイアウトします
     playout(color);
 
     return 0;
