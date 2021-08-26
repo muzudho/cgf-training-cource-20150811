@@ -636,8 +636,8 @@ const int ILLEGAL_Z = -1;
 /// リストの末尾に要素を追加。手を追加。
 /// この手を打った後のノードは、なし
 /// </summary>
-/// <param name="pN"></param>
-/// <param name="z"></param>
+/// <param name="pN">局面</param>
+/// <param name="z">手の座標</param>
 void add_child(NODE *pN, int z)
 {
     // 新しい要素のインデックス
@@ -646,7 +646,7 @@ void add_child(NODE *pN, int z)
     pN->child[n].games = 0;
     pN->child[n].rate = 0;
     pN->child[n].next = NODE_EMPTY;
-    // ノードのリストのサイズ
+    // ノードのリストのサイズ更新
     pN->child_num++;
 }
 
