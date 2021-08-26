@@ -562,28 +562,53 @@ int primitive_monte_calro(int color)
 // following are for UCT
 
 /// <summary>
-/// 子
+/// 手を保存するための構造体
 /// </summary>
 typedef struct
 {
-    int z;       // move position
-    int games;   // number of games
-    double rate; // winrate
-    int next;    // next node
+    /// <summary>
+    /// 手の場所（move position）
+    /// </summary>
+    int z;
+
+    /// <summary>
+    /// 試した回数（number of games）
+    /// </summary>
+    int games;
+
+    /// <summary>
+    /// 勝率（winrate）
+    /// </summary>
+    double rate;
+
+    /// <summary>
+    /// ノードのリストのインデックス。次のノード（next node）を指す
+    /// </summary>
+    int next;
 } CHILD;
 
-#define CHILD_SIZE (B_SIZE * B_SIZE + 1) // +1 for PASS
+// 最大の子数。9路なら82個。+1 for PASS
+#define CHILD_SIZE (B_SIZE * B_SIZE + 1)
 
 /// <summary>
-/// ノード
+/// 局面を保存する構造体
 /// </summary>
 typedef struct
 {
+    /// <summary>
+    /// 実際の子どもの数
+    /// </summary>
     int child_num;
     CHILD child[CHILD_SIZE];
+    /// <summary>
+    /// 何回このノードに来たか（子の合計）
+    /// </summary>
     int child_games_sum;
 } NODE;
 
+// 以下、探索木全体を保存
+
+// 最大10000局面まで
 #define NODE_MAX 10000
 
 /// <summary>
@@ -592,7 +617,7 @@ typedef struct
 NODE node[NODE_MAX];
 
 /// <summary>
-/// ノードのリストのサイズ
+/// ノードのリストのサイズ。登録局面数
 /// </summary>
 int node_num = 0;
 
@@ -607,7 +632,8 @@ const int NODE_EMPTY = -1;
 const int ILLEGAL_Z = -1;
 
 /// <summary>
-/// リストの末尾に要素を追加
+/// リストの末尾に要素を追加。手を追加。
+/// この手を打った後のノードは、なし
 /// </summary>
 /// <param name="pN"></param>
 /// <param name="z"></param>
@@ -625,8 +651,10 @@ void add_child(NODE *pN, int z)
 
 /// <summary>
 /// create new node.
+/// 空点を全部追加。
+/// PASSも追加。
 /// </summary>
-/// <returns>return node index.</returns>
+/// <returns>ノードのリストのインデックス。作られたノードを指す。最初は0から</returns>
 int create_node()
 {
     int x, y, z;
@@ -663,7 +691,10 @@ int create_node()
 }
 
 /// <summary>
-/// 最善のUCB値
+/// UCBが最大の手を返します。
+/// 一度も試していない手は優先的に選びます。
+/// 定数 Ｃ は実験で決めてください。
+/// PASS があるので、すべての手がエラーはありえません。
 /// </summary>
 /// <param name="node_n">ノードのリストのインデックス</param>
 /// <returns>ノードのリストのインデックス。選択した子ノードを指します</returns>
@@ -709,7 +740,7 @@ int select_best_ucb(int node_n)
 }
 
 /// <summary>
-/// UCT探索
+/// UCB値が最大の手を探索します
 /// </summary>
 /// <param name="color">手番の色</param>
 /// <param name="node_n">ノードのリストのインデックス</param>
@@ -721,6 +752,8 @@ int search_uct(int color, int node_n)
     // 最善の子ノード
     CHILD *c = NULL;
     int select, z, err, win;
+
+    // とりあえず打ってみる
     for (;;)
     {
         // 最善の子ノードのインデックス
@@ -732,12 +765,15 @@ int search_uct(int color, int node_n)
         err = put_stone(z, color, FILL_EYE_ERR);
         if (err == 0)
             break;
-        // 非合法手なら、ループをやり直し
+        // 非合法手なら、 ILLEGAL_Z をセットして ループをやり直し
         c->z = ILLEGAL_Z; // select other move
     }
 
+    // c->games <= 10 とかにすればメモリを節約できます。
+    // c->games <= 0 より強くなる場合もあります。
+    // playout in first time. <= 10 can reduce node.
     if (c->games <= 0)
-    { // playout in first time. <= 10 can reduce node.
+    {
         // 手番をひっくり返してプレイアウト
         win = -playout(flip_color(color));
     }
@@ -747,11 +783,11 @@ int search_uct(int color, int node_n)
         if (c->next == NODE_EMPTY)
             c->next = create_node();
 
-        // 手番をひっくり返して UCT探索。勝率はひっくり返して格納
+        // 手番をひっくり返して UCT探索（ネガマックス形式）。勝率はひっくり返して格納
         win = -search_uct(flip_color(color), c->next);
     }
 
-    // update winrate
+    // 勝率の更新（update winrate）
     c->rate = (c->rate * c->games + win) / (c->games + 1);
 
     // 対局数カウントアップ
@@ -779,9 +815,10 @@ int get_best_uct(int color)
 
     // ノードリストの要素数
     node_num = 0;
-    // 次のノードのインデックス
+    // 次のノードのインデックス。現図を作成しています
     next = create_node();
 
+    // とりあえず uct_loop回繰り返します
     for (i = 0; i < uct_loop; i++)
     {
         // 現図を退避
@@ -798,12 +835,12 @@ int get_best_uct(int color)
     }
     // 次のノード
     pN = &node[next];
-    // 子ノードの数だけ繰り返します
+    // 子ノード全部確認
     for (i = 0; i < pN->child_num; i++)
     {
         // 子ノード
         CHILD *c = &pN->child[i];
-        // 最大対局数の更新
+        // 最大対局数（一番打たれた手ということ）の更新
         if (c->games > max)
         {
             best_i = i;
