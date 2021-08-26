@@ -970,7 +970,7 @@ void print_sgf()
 }
 
 /// <summary>
-/// 自己対戦
+/// UCTと原始モンテカルロを自己対戦
 /// </summary>
 void selfplay()
 {
