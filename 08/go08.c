@@ -559,7 +559,8 @@ int primitive_monte_calro(int color)
     return best_z;
 }
 
-// following are for UCT
+// following are for UCT(Upper Confidence Tree)
+// `UCT` - 探索と知識利用のバランスを取る手法
 
 /// <summary>
 /// 手を保存するための構造体
@@ -740,35 +741,40 @@ int select_best_ucb(int node_n)
 }
 
 /// <summary>
-/// UCB値が最大の手を探索します
+/// ゲームをプレイします（再帰関数）
+/// UCTという探索の手法で行います
 /// </summary>
-/// <param name="color">手番の色</param>
-/// <param name="node_n">ノードのリストのインデックス</param>
+/// <param name="color">手番の色。最初は考えているプレイヤーの色</param>
+/// <param name="node_n">ノードのリストのインデックス。最初は0</param>
 /// <returns>手番の勝率</returns>
 int search_uct(int color, int node_n)
 {
+    // この局面
     NODE *pN = &node[node_n];
 
-    // 最善の子ノード
+    // 最善の一手（子ノード）
     CHILD *c = NULL;
     int select, z, err, win;
 
     // とりあえず打ってみる
     for (;;)
     {
-        // 最善の子ノードのインデックス
+        // 最善の一手（子ノード）のインデックス
         select = select_best_ucb(node_n);
+        // 最善の一手（子ノード）
         c = &pN->child[select];
-        // 最善の子ノードの座標
+        // 最善の一手（子ノード）の座標
         z = c->z;
         // 石を置く
         err = put_stone(z, color, FILL_EYE_ERR);
+        // 合法手ならループを抜けます
         if (err == 0)
             break;
         // 非合法手なら、 ILLEGAL_Z をセットして ループをやり直し
         c->z = ILLEGAL_Z; // select other move
     }
 
+    // この一手が１度も試行されていなければ、プレイアウトします
     // c->games <= 10 とかにすればメモリを節約できます。
     // c->games <= 0 より強くなる場合もあります。
     // playout in first time. <= 10 can reduce node.
@@ -777,6 +783,7 @@ int search_uct(int color, int node_n)
         // 手番をひっくり返してプレイアウト
         win = -playout(flip_color(color));
     }
+    // この一手が既に試行されていれば、（プレイアウトではなく）search_uct します。
     else
     {
         // 子ノードが葉なら、さらに延長
@@ -803,10 +810,10 @@ int search_uct(int color, int node_n)
 int uct_loop = 1000;
 
 /// <summary>
-/// 最善のUCTを取得
+/// 一番良く打たれた一手の座標を返します
 /// </summary>
 /// <param name="color">手番の色</param>
-/// <returns></returns>
+/// <returns>一番良く打たれた一手の座標</returns>
 int get_best_uct(int color)
 {
     int next, i, best_z, best_i = -1;
@@ -815,10 +822,10 @@ int get_best_uct(int color)
 
     // ノードリストの要素数
     node_num = 0;
-    // 次のノードのインデックス。現図を作成しています
+    // 次のノードのインデックス。ここでは0。現図を作成しています
     next = create_node();
 
-    // とりあえず uct_loop回繰り返します
+    // とりあえず UCT探索（search_uct）を、uct_loop回繰り返します
     for (i = 0; i < uct_loop; i++)
     {
         // 現図を退避
