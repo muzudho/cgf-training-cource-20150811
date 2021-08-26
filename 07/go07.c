@@ -31,12 +31,12 @@ int board[BOARD_MAX] = {
     3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3,
     3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3,
     3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3,
-    3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
+    3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 };
 
 /// <summary>
 /// 右、下、左、上
 /// </summary>
-int dir4[4] = {+1, +WIDTH, -1, -WIDTH};
+int dir4[4] = { +1, +WIDTH, -1, -WIDTH };
 
 /// <summary>
 /// コウの座標
@@ -103,7 +103,7 @@ int check_board[BOARD_MAX];
 /// <param name="color">連の色</param>
 /// <param name="p_liberty">呼吸点の数</param>
 /// <param name="p_stone">連の石の数</param>
-void count_liberty_sub(int tz, int color, int *p_liberty, int *p_stone)
+void count_liberty_sub(int tz, int color, int* p_liberty, int* p_stone)
 {
     int z, i;
 
@@ -130,7 +130,7 @@ void count_liberty_sub(int tz, int color, int *p_liberty, int *p_stone)
 /// <param name="tz">着手座標</param>
 /// <param name="p_liberty">呼吸点の数</param>
 /// <param name="p_stone">連の石の数</param>
-void count_liberty(int tz, int *p_liberty, int *p_stone)
+void count_liberty(int tz, int* p_liberty, int* p_stone)
 {
     int i;
     *p_liberty = *p_stone = 0;
@@ -302,7 +302,7 @@ int put_stone(int tz, int color, int fill_eye_err)
 void print_board()
 {
     int x, y;
-    const char *str[4] = {".", "X", "O", "#"};
+    const char* str[4] = { ".", "X", "O", "#" };
 
     // 筋の符号の表示
     printf("   ");
