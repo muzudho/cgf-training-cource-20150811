@@ -157,7 +157,8 @@ int flip_color(int col)
 }
 
 /// <summary>
-/// プリントか？
+/// プリントなんだけれども 標準エラー出力に出してる？
+/// サーバーに出力したくない文字列を表示したいときに使う？
 /// </summary>
 /// <param name="fmt">書式か？</param>
 /// <param name="">可変長引数</param>
@@ -785,7 +786,7 @@ int playout(int turn_color)
 
         // 配列のインデックス
         int empty_num = 0;
-        // 確率か何か？
+        // 空点を選ぶ確率？
         int prob_sum = 0;
 
         int x, y, z, err, pr;
@@ -866,7 +867,8 @@ int playout(int turn_color)
 /// <returns>最善手の座標</returns>
 int primitive_monte_calro(int color)
 {
-    int try_num = 30; // number of playout
+    // number of playout
+    int try_num = 30;
 
     // 最善手の座標
     int best_z = 0;
@@ -978,7 +980,7 @@ typedef struct
     int next;
 
     /// <summary>
-    /// 0～10の何らかのボーナス？（shape bonus）
+    /// 人間的に盤面上の3x3のパターンの形を考えると悪手なので、着手の確率を下げるための割引率 0.0～1.0（shape bonus）
     /// </summary>
     double bonus;
 } CHILD;
@@ -997,7 +999,7 @@ typedef struct
     int child_num;
     CHILD child[CHILD_SIZE];
     /// <summary>
-    /// 何回このノードに来たか（子の合計）
+    /// 何回の対局でこのノードに来たか（子の合計）
     /// </summary>
     int child_games_sum;
 } NODE;
@@ -1034,7 +1036,7 @@ const int ILLEGAL_Z = -1;
 /// <param name="pN">局面</param>
 /// <param name="z">手の座標</param>
 /// <param name="bonus">
-/// 人間的に考えて悪手なので、着手の確率を下げるための割引率 0.0～1.0
+/// 人間的に盤面上の3x3のパターンの形を考えると悪手なので、着手の確率を下げるための割引率 0.0～1.0
 /// from 0 to 10, good move has big bonus
 /// </param>
 void add_child(NODE* pN, int z, double bonus)
@@ -1051,11 +1053,11 @@ void add_child(NODE* pN, int z, double bonus)
 }
 
 /// <summary>
-/// 人間的に考えて悪手なので、着手の確率を下げるための割引率 0.0～1.0
+/// 人間的に盤面上の3x3のパターンの形を考えると悪手なので、着手の確率を下げるための割引率 0.0～1.0
 /// </summary>
 /// <param name="z">座標</param>
 /// <param name="prev_z">前回の座標</param>
-/// <returns>人間的に考えて悪手なので、着手の確率を下げるための割引率 0.0～1.0</returns>
+/// <returns>人間的に盤面上の3x3のパターンの形を考えると悪手なので、着手の確率を下げるための割引率 0.0～1.0</returns>
 double get_bonus(int z, int prev_z)
 {
     // 段
@@ -1106,7 +1108,7 @@ double get_bonus(int z, int prev_z)
 int create_node(int prev_z)
 {
     int x, y, z, i, j;
-    // 人間的に考えて悪手なので、着手の確率を下げるための割引率 0.0～1.0
+    // 人間的に盤面上の3x3のパターンの形を考えると悪手なので、着手の確率を下げるための割引率 0.0～1.0
     double bonus;
     NODE* pN;
 
@@ -1130,7 +1132,7 @@ int create_node(int prev_z)
             if (board[z] != 0)
                 continue;
 
-            // 人間的に考えて悪手なので、着手の確率を下げるための割引率 0.0～1.0
+            // 人間的に盤面上の3x3のパターンの形を考えると悪手なので、着手の確率を下げるための割引率 0.0～1.0
             bonus = get_bonus(z, prev_z);
 
             add_child(pN, z, bonus);
@@ -1251,15 +1253,20 @@ int search_uct(int color, int node_n)
     {
         // 最善の一手（子ノード）のインデックス
         select = select_best_ucb(node_n);
+
         // 最善の一手（子ノード）
         c = &pN->child[select];
+
         // 最善の一手（子ノード）の座標
         z = c->z;
+
         // 石を置く
         err = put_stone(z, color, FILL_EYE_ERR);
+
         // 合法手ならループを抜けます
         if (err == 0)
             break;
+
         // 非合法手なら、 ILLEGAL_Z をセットして ループをやり直し
         c->z = ILLEGAL_Z; // select other move
     }
@@ -1470,6 +1477,7 @@ void print_sgf()
     // 指し手出力
     for (i = 0; i < moves; i++)
     {
+        // 座標
         int z = record[i];
         // 段
         int y = z / WIDTH;
@@ -1704,5 +1712,6 @@ int main()
             send_gtp("? unknown_command\n\n");
         }
     }
+
     return 0;
 }
