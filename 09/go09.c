@@ -467,6 +467,7 @@ int playout(int turn_color)
         // もしパスが連続したら対局終了
         if (z == 0 && previous_z == 0)
             break; // continuous pass
+
         // そうでなければ盤を表示して手番を変えて続行
         previous_z = z;
         //  print_board();
@@ -719,6 +720,7 @@ int select_best_ucb(int node_n)
     for (i = 0; i < pN->child_num; i++)
     {
         CHILD* c = &pN->child[i];
+
         // 非合法手の座標なら無視
         if (c->z == ILLEGAL_Z)
             continue;
@@ -970,7 +972,7 @@ void print_sgf()
 }
 
 /// <summary>
-/// UCTと原始モンテカルロを自己対戦
+/// 黒番は原始モンテカルロ、白番はUCTで自己対戦
 /// </summary>
 void selfplay()
 {
