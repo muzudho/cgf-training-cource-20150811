@@ -513,8 +513,13 @@ int put_stone(int tz, int color, int fill_eye_err)
     // 石を置きます
     board[tz] = color;
 
+    // 着手点のビット列を、XOR演算でひっくり返します
     hash_xor(tz, color);
+
+    // ハッシュコードのビット列の 0,1 をひっくり返している？
     hash_pass();
+
+    // コウであれば、コウの場所のビット列の 0,1 をひっくり返している？
     if (ko_z != 0)
         hash_xor(ko_z, HASH_KO);
 
@@ -617,6 +622,7 @@ int count_score(int turn_color)
 /// <returns>黒の勝ちなら1、負けなら0</returns>
 int playout(int turn_color)
 {
+    // 手番の色
     int color = turn_color;
 
     // １つ前の着手の座標
@@ -626,6 +632,7 @@ int playout(int turn_color)
     int loop;
     int loop_max = B_SIZE * B_SIZE + 200; // for triple ko
 
+    // プレイアウト回数のカウント
     all_playouts++;
 
     for (loop = 0; loop < loop_max; loop++)
@@ -636,7 +643,7 @@ int playout(int turn_color)
         // 配列のインデックス
         int empty_num = 0;
 
-        // 空点を確率？
+        // 空点を選ぶ確率？
         int prob_sum = 0;
 
         int x, y, z, err, pr;
@@ -755,6 +762,7 @@ int primitive_monte_calro(int color)
         {
             // 石を置く座標
             int z = get_z(x + 1, y + 1);
+
             // 空点でなければ無視
             if (board[z] != 0)
                 continue;
@@ -896,8 +904,19 @@ const int NODE_EMPTY = -1;
 /// </summary>
 const int ILLEGAL_Z = -1;
 
+/// <summary>
+/// リストの末尾に要素を追加。手を追加。
+/// この手を打った後のノードは、なし
+/// </summary>
+/// <param name="pN">局面</param>
+/// <param name="z">手の座標</param>
+/// <param name="bonus">
+/// 人間的に考えて悪手なので、着手の確率を下げるための割引率 0.0～1.0
+/// from 0 to 10, good move has big bonus
+/// </param>
 void add_child(NODE* pN, int z, double bonus)
 {
+    // 新しい要素のインデックス
     int n = pN->child_num;
     pN->child[n].z = z;
     pN->child[n].games = 0;
@@ -905,7 +924,8 @@ void add_child(NODE* pN, int z, double bonus)
     pN->child[n].rave_games = 0;
     pN->child[n].rave_rate = 0;
     pN->child[n].next = NODE_EMPTY;
-    pN->child[n].bonus = bonus; // from 0 to 10, good move has big bonus.
+    pN->child[n].bonus = bonus;
+    // ノードのリストのサイズ更新
     pN->child_num++;
 }
 
@@ -914,7 +934,7 @@ void add_child(NODE* pN, int z, double bonus)
 /// 空点を全部追加。
 /// PASSも追加。
 /// </summary>
-/// <param name="prev_z"></param>
+/// <param name="prev_z">前回の着手の座標</param>
 /// <returns>ノードのリストのインデックス。作られたノードを指す。最初は0から</returns>
 int create_node(int prev_z)
 {
@@ -999,6 +1019,7 @@ int select_best_ucb(int node_n, int color)
         if (c->z == ILLEGAL_Z)
             continue;
 
+        // 試した回数が 0 のとき
         if (c->games == 0)
         {
             ucb_rave = 10000 + (rand() & 0x7fff); // try once
@@ -1051,23 +1072,43 @@ int select_best_ucb(int node_n, int color)
 /// <param name="win">勝率</param>
 void update_rave(NODE* pN, int color, int current_depth, double win)
 {
+    // 盤面の各交点の手番の色？
     int played_color[BOARD_MAX];
-    int i, z;
+
+    // ループ カウンター
+    int i;
+    
+    // 着手した座標
+    int z;
+
+    // 手番の色
     int c = color;
 
+    // ゼロ クリアーした？
     memset(played_color, 0, sizeof(played_color));
+
+    // 経路の残りの負荷さについて
     for (i = current_depth; i < depth; i++)
     {
+        // 着手点
         z = path[i];
+
+        // 記録がなければ上書き
         if (played_color[z] == 0)
             played_color[z] = c;
+
+        // 手番の色交代
         c = flip_color(c);
     }
 
-    played_color[0] = 0; // ignore pass
+    // パスはゼロ クリアー
+    // ignore pass
+    played_color[0] = 0;
 
+    // すべての子ノードについて
     for (i = 0; i < pN->child_num; i++)
     {
+        // 子ノード
         CHILD* c = &pN->child[i];
 
         // 非合法手は無視
@@ -1078,8 +1119,13 @@ void update_rave(NODE* pN, int color, int current_depth, double win)
         if (played_color[c->z] != color)
             continue;
 
+        // レーブ率の再計算？
         c->rave_rate = (c->rave_games * c->rave_rate + win) / (c->rave_games + 1);
+
+        // レーブの対局数？をカウント
         c->rave_games++;
+
+        // 子レーブの対局数？をカウント
         pN->child_rave_games_sum++;
     }
 }
@@ -1123,9 +1169,10 @@ int search_uct(int color, int node_n)
         c->z = ILLEGAL_Z; // select other move
     }
 
+    // 現在の深さを更新
     current_depth = depth;
 
-    // 経路に格納
+    // 経路に着手点を格納
     path[depth++] = c->z;
 
     // この一手が１度も試行されていなければ、プレイアウトします
@@ -1157,6 +1204,8 @@ int search_uct(int color, int node_n)
 
     // 対局数カウントアップ
     c->games++;
+
+    // 子の対局数？をカウントアップ
     pN->child_games_sum++;
 
     return win;
@@ -1175,7 +1224,11 @@ int uct_loop = 1000;
 int get_best_uct(int color)
 {
     int next, i, best_z, best_i = -1;
+
+    // 手が打たれた対局数の最大数？
     int max = -999;
+
+    // この局面
     NODE* pN;
 
     // 前回の着手座標？
@@ -1187,6 +1240,7 @@ int get_best_uct(int color)
 
     // ノードリストの要素数
     node_num = 0;
+
     // 次のノードのインデックス。ここでは0。現図を作成しています
     next = create_node(prev_z);
 
@@ -1208,13 +1262,16 @@ int get_best_uct(int color)
         ko_z = ko_z_copy;
         memcpy(board, board_copy, sizeof(board));
     }
+
     // 次のノード
     pN = &node[next];
+
     // 子ノード全部確認
     for (i = 0; i < pN->child_num; i++)
     {
         // 子ノード
         CHILD* c = &pN->child[i];
+
         // 最大対局数（一番打たれた手ということ）の更新
         if (c->games > max)
         {
@@ -1224,6 +1281,7 @@ int get_best_uct(int color)
         prt("%2d:z=%2d,rate=%6.3f,games=%4d, rave_r=%6.3f,g=%4d\n",
             i, get81(c->z), c->rate, c->games, c->rave_rate, c->rave_games);
     }
+
     // ベストなノードの座標
     best_z = pN->child[best_i].z;
     prt("best_z=%d,rate=%6.3f,games=%4d,playouts=%d,nodes=%d\n",
@@ -1263,18 +1321,23 @@ void add_moves(int z, int color)
 {
     // 石を置きます
     int err = put_stone(z, color, FILL_EYE_OK);
+
     // 非合法手なら強制終了
     if (err != 0)
     {
         prt("put_stone err=%d\n", err);
         exit(0);
     }
+
     // 棋譜の末尾に記入
     record[moves] = z;
+
     // 棋譜のサイズを伸ばします
     moves++;
+
     // 盤表示
     print_board();
+
     // ハッシュコード表示
     prt("hashcode=");
     prt_code64(hashcode);
@@ -1301,13 +1364,16 @@ int get_computer_move(int color, int search)
 {
     // 現在時刻
     clock_t st = clock();
+
     // 思考時間（秒）
     double t;
+
     // 座標
     int z;
 
     // プレイアウト回数
     all_playouts = 0;
+
     if (search == SEARCH_UCT)
     {
         // UCTを使ったゲームプレイ
@@ -1318,8 +1384,10 @@ int get_computer_move(int color, int search)
         // 原始モンテカルロでゲームプレイ
         z = primitive_monte_calro(color);
     }
+
     // 消費時間（秒）
     t = (double)(clock() + 1 - st) / CLOCKS_PER_SEC;
+
     // 情報表示
     prt("z=%s,color=%d,moves=%d,playouts=%d, %.1f sec(%.0f po/sec),depth=%d\n",
         get_char_z(z), color, moves, all_playouts, t, all_playouts / t, depth);
@@ -1342,13 +1410,17 @@ void print_sgf()
     {
         // 座標
         int z = record[i];
+
         // 段
         int y = z / WIDTH;
+
         // 筋
         int x = z - y * WIDTH;
+
         // 色
         const char* sStone[2] = { "B", "W" };
         prt(";%s", sStone[i & 1]);
+
         // パス
         if (z == 0)
         {
@@ -1358,6 +1430,7 @@ void print_sgf()
         {
             prt("[%c%c]", x + 'a' - 1, y + 'a' - 1);
         }
+
         // 改行
         if (((i + 1) % 10) == 0)
             prt("\n");
@@ -1374,8 +1447,10 @@ void selfplay()
 {
     // 黒の手番
     int color = 1;
+
     // 座標
     int z;
+
     // 探索方法フラグ
     int search;
 
@@ -1417,6 +1492,7 @@ void selfplay()
 /// </summary>
 void test_playout()
 {
+    // テストプレイであるというフラグを立てます
     flag_test_playout = 1;
 
     // 黒手番でプレイアウト
@@ -1431,6 +1507,7 @@ void test_playout()
 
 // GTPプロトコルの1行を読込むのに十分な文字列サイズ
 #define STR_MAX 256
+
 // スペース区切りで3つ分まで読込む？
 #define TOKEN_MAX 3
 
