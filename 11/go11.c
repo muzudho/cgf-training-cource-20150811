@@ -173,7 +173,7 @@ void prt(const char* fmt, ...)
 }
 
 /// <summary>
-/// Go Text Protocol の何か？
+/// Go Text Protocol のコマンドを標準出力に出力します
 /// </summary>
 /// <param name="fmt">書式か？</param>
 /// <param name="">可変長引数</param>
@@ -412,6 +412,7 @@ int put_stone(int tz, int color, int fill_eye_err)
 
     // 着手点を含む連の呼吸点の数を数えます
     count_liberty(tz, &liberty, &stone);
+
     // 石を1個取ったらコウかも知れない
     if (capture_sum == 1 && stone == 1 && liberty == 1)
         ko_z = ko_maybe;
@@ -430,16 +431,22 @@ int put_stone(int tz, int color, int fill_eye_err)
 int count_score(int turn_color)
 {
     int x, y, i;
+
     // 黒のスコア
     int score = 0;
+
     // 手番の勝ちなら1、負けなら0
     int win;
+
     // 黒石の数、白石の数
     int black_area = 0, white_area = 0;
+
     // 石の数＋地の数
     int black_sum, white_sum;
+
     // 4方向にある石について、[ゴミ値, 盤上の黒石の数, 盤上の白石の数]
     int mk[4];
+
     // [空点の数, 黒石の数, 白石の数]
     int kind[3];
 
@@ -464,6 +471,7 @@ int count_score(int turn_color)
             // 黒石だけがあるなら黒の地
             if (mk[1] && mk[2] == 0)
                 black_area++;
+
             // 白石だけがあるなら白の地
             if (mk[2] && mk[1] == 0)
                 white_area++;
@@ -516,6 +524,7 @@ int playout(int turn_color)
 
         // 配列のインデックス
         int empty_num = 0;
+
         // 空点を確率？
         int prob_sum = 0;
 
@@ -564,6 +573,7 @@ int playout(int turn_color)
             err = put_stone(z, color, FILL_EYE_ERR);
             if (err == 0)
                 break; // pass is ok.
+
             // もし空点に石を置くと正常終了しなかったなら、残りの座標で続行します
             prob_sum -= empty[i][1];
             empty[i][0] = empty[empty_num - 1][0]; // err, delete
@@ -610,8 +620,10 @@ int primitive_monte_calro(int color)
     // 勝率
     double win_rate;
     int x, y, err, i;
+
     // プレイアウトして勝った回数
     int win_sum;
+
     // 手番が勝ったら1、負けたら0
     int win;
 
@@ -966,6 +978,7 @@ void update_rave(NODE* pN, int color, int current_depth, double win)
         // 相手の色なら無視
         if (played_color[c->z] != color)
             continue;
+
         c->rave_rate = (c->rave_games * c->rave_rate + win) / (c->rave_games + 1);
         c->rave_games++;
         pN->child_rave_games_sum++;
@@ -1276,14 +1289,18 @@ void selfplay()
 
         // 次の一手
         z = get_computer_move(color, search);
+
         // 棋譜に書込み
         add_moves(z, color);
+
         // パスパスなら終局
         if (z == 0 && moves > 1 && record[moves - 2] == 0)
             break;
+
         // 300手を超えても終局
         if (moves > 300)
             break; // too long
+
         // 手番の色反転
         color = flip_color(color);
     }
@@ -1297,10 +1314,13 @@ void selfplay()
 void test_playout()
 {
     flag_test_playout = 1;
+
     // 黒手番でプレイアウト
     playout(1);
+
     // 盤表示
     print_board();
+
     // SGF形式の棋譜を出力
     print_sgf();
 }
@@ -1317,18 +1337,23 @@ void gtp_loop()
 {
     // 入力文字列バッファー
     char str[STR_MAX];
+
     // スプリットされた文字列のリスト
     char sa[TOKEN_MAX][STR_MAX];
+
     // コマンドはスペース区切り
     char seps[] = " ";
+
     // スプリットされた文字列１つ
     char* token;
     int x, y, z, ax, count;
 
     // 標準出力
     setbuf(stdout, NULL);
+
     // 標準エラー出力
     setbuf(stderr, NULL);
+
     for (;;)
     {
         // 標準入力から文字列読取
