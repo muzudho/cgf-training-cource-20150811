@@ -144,7 +144,7 @@ typedef uint64_t uint64; // Linux
 // コウ？
 #define HASH_KO 3
 
-// ハッシュ ボード？
+// 盤の各交点の、種類別のハッシュ？
 uint64 hashboard[BOARD_MAX][HASH_KINDS];
 
 // ハッシュ コード？
@@ -216,10 +216,11 @@ void hash_pass()
 /// <summary>
 /// XOR演算する？
 /// </summary>
-/// <param name="z"></param>
-/// <param name="color"></param>
+/// <param name="z">着手点</param>
+/// <param name="color">手番の色</param>
 void hash_xor(int z, int color)
 {
+    // 指定座標、指定色のハッシュの 2進数の 0と1 を反転させたものを ハッシュコードに記憶させている？
     hashcode ^= hashboard[z][color];
 }
 
@@ -241,10 +242,18 @@ int get_z(int x, int y)
 /// <returns>人が読める形の座標</returns>
 int get81(int z)
 {
+    // 段
     int y = z / WIDTH;
-    int x = z - y * WIDTH; // 106 = 9*11 + 7 = (x,y)=(7,9) -> 79
+
+    // 筋
+    // 106 = 9*11 + 7 = (x,y)=(7,9) -> 79
+    int x = z - y * WIDTH;
+
+    // パスなら0を返します
     if (z == 0)
         return 0;
+
+    // 人が読める形の座標
     return x * 10 + y; // x*100+y for 19x19
 }
 
@@ -582,7 +591,14 @@ int put_stone(int tz, int color, int fill_eye_err)
 /// <returns>黒の勝ちなら1、負けなら0</returns>
 int count_score(int turn_color)
 {
-    int x, y, i;
+    // 筋
+    int x;
+    
+    // 段
+    int y;
+
+    // ループ カウンター
+    int i;
 
     // 黒のスコア
     int score = 0;
@@ -684,7 +700,8 @@ int playout(int turn_color)
     for (loop = 0; loop < loop_max; loop++)
     {
         // all empty points are candidates.
-        int empty[BOARD_MAX][2]; // [0]...z, [1]...probability
+        // [0]...z, [1]...probability
+        int empty[BOARD_MAX][2];
 
         // 配列のインデックス
         int empty_num = 0;
@@ -708,6 +725,7 @@ int playout(int turn_color)
                 prob_sum += pr;
                 empty_num++;
             }
+
         for (;;)
         {
             int i = 0;
@@ -760,8 +778,11 @@ int playout(int turn_color)
         // そうでなければ盤を表示して手番を変えて続行
         previous_z = z;
         //  prt("loop=%d,z=%s,c=%d,empty_num=%d,ko_z=%d\n",loop,get_char_z(z),color,empty_num,ko_z);
+
+        // 手番を反転
         color = flip_color(color);
     }
+
     return count_score(turn_color);
 }
 
@@ -775,7 +796,7 @@ int primitive_monte_calro(int color)
     // number of playout
     int try_num = 30;
 
-    // 最善手の座標
+    // 最善手の着手点
     int best_z = 0;
 
     // 最善の価値
@@ -783,11 +804,22 @@ int primitive_monte_calro(int color)
 
     // 勝率
     double win_rate;
-    int x, y, err, i;
-    
+
+    // 筋
+    int x;
+
+    // 段
+    int y;
+
+    // エラーコード
+    int err;
+
+    // ループ カウンター
+    int i;
+
     // プレイアウトして勝った回数
     int win_sum;
-    
+
     // 手番が勝ったら1、負けたら0
     int win;
 
@@ -795,7 +827,8 @@ int primitive_monte_calro(int color)
     int ko_z_copy;
 
     // 盤のコピー
-    int board_copy[BOARD_MAX]; // keep current board
+    // keep current board
+    int board_copy[BOARD_MAX];
     ko_z_copy = ko_z;
     memcpy(board_copy, board, sizeof(board));
 
@@ -820,6 +853,7 @@ int primitive_monte_calro(int color)
             if (err != 0)
                 continue;
 
+            // 勝った回数
             win_sum = 0;
             for (i = 0; i < try_num; i++)
             {
@@ -855,6 +889,7 @@ int primitive_monte_calro(int color)
             // 盤の復元
             memcpy(board, board_copy, sizeof(board)); // resume board
         }
+
     return best_z;
 }
 
@@ -984,7 +1019,19 @@ void add_child(NODE* pN, int z, double bonus)
 /// <returns>ノードのリストのインデックス。作られたノードを指す。最初は0から</returns>
 int create_node(int prev_z)
 {
-    int x, y, z, i, j;
+    // 筋
+    int x;
+
+    // 段
+    int y;
+
+    // 着手点
+    int z;
+
+    // ループ カウンター
+    int i, j;
+
+    // この局面
     NODE* pN;
 
     // これ以上増やせません
@@ -1005,8 +1052,10 @@ int create_node(int prev_z)
         for (x = 0; x < B_SIZE; x++)
         {
             z = get_z(x + 1, y + 1);
+
             if (board[z] != 0)
                 continue;
+
             add_child(pN, z, 0);
         }
     add_child(pN, 0, 0); // add PASS
@@ -1050,15 +1099,22 @@ int create_node(int prev_z)
 /// <returns>ノードのリストのインデックス。選択した子ノードを指します</returns>
 int select_best_ucb(int node_n, int color)
 {
+    // この局面
     NODE* pN = &node[node_n];
+
+    // 1手でも選ばれたか否か
     int select = -1;
+
     double max_ucb = -999;
     double ucb = 0, ucb_rave = 0, beta;
+
+    // ループ カウンター
     int i;
 
     // 子要素の数だけ繰り返します
     for (i = 0; i < pN->child_num; i++)
     {
+        // この子ノード
         CHILD* c = &pN->child[i];
 
         // 非合法手の座標なら無視
@@ -1101,11 +1157,14 @@ int select_best_ucb(int node_n, int color)
             select = i;
         }
     }
+
+    // 1手も選ばれなかったらエラーなので強制終了
     if (select == -1)
     {
         prt("Err! select\n");
         exit(0);
     }
+
     return select;
 }
 
@@ -1123,7 +1182,7 @@ void update_rave(NODE* pN, int color, int current_depth, double win)
 
     // ループ カウンター
     int i;
-    
+
     // 着手した座標
     int z;
 
@@ -1502,7 +1561,7 @@ void selfplay()
 
     // 座標
     int z;
-    
+
     // 探索方法フラグ
     int search;
 
