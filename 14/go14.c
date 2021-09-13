@@ -269,7 +269,8 @@ int get81(int z)
         return 0;
 
     // 人が読める形の座標
-    return x * 10 + y; // x*100+y for 19x19
+    // x*100+y for 19x19
+    return x * 10 + y;
 }
 
 /// <summary>
@@ -282,17 +283,33 @@ int get81(int z)
 /// <returns>人が読める形の座標（文字列）</returns>
 char* get_char_z(int z)
 {
-    int x, y, ax;
+    // 筋
+    int x;
+    
+    // 段
+    int y;
+    
+    // 筋アルファベット
+    int ax;
+
+    // 文字列バッファー
     static char buf[16];
+
+    // パス
     sprintf(buf, "pass");
     if (z == 0)
         return buf;
+
     y = z / WIDTH;
     x = z - y * WIDTH;
     ax = x - 1 + 'A';
+
+    // 筋に I列は無いので詰めます
     if (ax >= 'I')
         ax++; // from 'A' to 'T', excluding 'I'
+
     sprintf(buf, "%c%d", ax, B_SIZE + 1 - y);
+
     return buf;
 }
 
@@ -311,10 +328,22 @@ int flip_color(int col)
 /// </summary>
 void print_board()
 {
-    int x, y;
+    // 筋
+    int x;
+
+    // 段
+    int y;
+
+    // 石
     const char* str[4] = { ".", "X", "O", "#" };
+
+    // 着手点
     int played_z = 0;
+
+    // 手番の色
     int color = 0;
+
+    // 1手前の着手
     if (moves > 0)
     {
         played_z = record[moves - 1];
@@ -425,7 +454,11 @@ int check_board[BOARD_MAX];
 /// <param name="p_stone">連の石の数</param>
 void count_liberty_sub(int tz, int color, int* p_liberty, int* p_stone)
 {
-    int z, i;
+    // 着手点
+    int z;
+
+    // ループ カウンター
+    int i;
 
     check_board[tz] = 1; // search flag
     (*p_stone)++;        // number of stone
@@ -1040,10 +1073,12 @@ typedef struct
     /// </summary>
     int child_num;
     CHILD child[CHILD_SIZE];
+
     /// <summary>
     /// 何回の対局でこのノードに来たか（子の合計）
     /// </summary>
     int child_games_sum;
+
     /// <summary>
     /// レーブ？な対局数？（子の合計）
     /// </summary>
@@ -1360,7 +1395,8 @@ int search_uct(int color, int node_n)
             break;
 
         // 非合法手なら、 ILLEGAL_Z をセットして ループをやり直し
-        c->z = ILLEGAL_Z; // select other move
+        // select other move
+        c->z = ILLEGAL_Z;
     }
 
     // 現在の深さを更新
@@ -1526,7 +1562,7 @@ void add_moves(int z, int color)
     // 棋譜の末尾に記入
     record[moves] = z;
 
-    // 棋譜のサイズを伸ばします
+    // 棋譜の書くところを１つ進めます
     moves++;
 
     // 盤表示
@@ -1693,6 +1729,7 @@ void selfplay()
         color = flip_color(color);
     }
 
+    // SGF形式で棋譜表示
     print_sgf();
 }
 
